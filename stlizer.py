@@ -1,5 +1,12 @@
 import math
 import sys
+import itertools
+
+class NotSamePlaneError(ValueError):
+	pass
+
+
+
 
 
 class point(object):
@@ -9,39 +16,39 @@ class point(object):
 		self.z = z
 
 
-
-
-
 class spvector(object):
 	def __init__(self, spoint, p):
-		self.value = (p.x - spoint.x, p.y - spoint.y, p.z - spoint.z)
+		self.value = (p[0] - spoint[0], p[1] - spoint[1], p[2] - spoint[2])
 		self.magnitude = math.sqrt(self.value[0]**2 + self.value[1]**2 + self.value[2]**2)
 
 class vector(object):
 	def __init__(self, val):
 		self.value = val
 		self.magnitude = math.sqrt(self.value[0]**2 + self.value[1]**2 + self.value[2]**2)
-		print('math.sqrt(%s^2 + %s^2 + %s^2)' % (self.value[0], self.value[1], self.value[2]))
 
 	def unit_resize(self):
 		return vector((self.value[0]/self.magnitude, self.value[1]/self.magnitude, self.value[2]/self.magnitude))
 
+class item:
+	whoami = 'item'
+	def whoami(self):
+		return self.whoami
 
 
 
-
-class trigon(object):
+class trigon(item):
 	#polygon; triangle
+
+	whoami = 'trigon'
+
 	def __init__(self, p1, p2, p3):
 		self.points = [p1, p2, p3]
 		self.normal = self.normal()
-		self.type = 'trig'
 
 	def normal(self):
 		#Vectorize (p1, p2) and (p1, p3)
 		vector1 = spvector(self.points[0], self.points[1])
-		vector2 = spvector(self.points[0], self.points[2])
-		print(vector1.value, vector2.value)
+		vector2 = spvector(self.points[0], self.points[2])=
 		normal = vector(self.cross_product(vector1.value, vector2.value))
 		unit_normal = normal.unit_resize()
 		return unit_normal
@@ -50,57 +57,92 @@ class trigon(object):
 		v3 = (v1[1]*v2[2]-v1[2]*v2[1], v1[2]*v2[0]-v1[0]*v2[2], v1[0]*v2[1]-v1[1]*v2[0])
 		return v3
 
-class quad(object):
-	#Convert into two polygons
-	#Format must be in rect format
-	def __init__(self, p1, p2, p3, p4):
-		self.type = 'quad'
-		self.points = [p1, p2, p3, p4]
-		self.poly1 = trigon(p1, p2, p3)
-		self.poly2 = trigon(p3, p4, p1)
+	def split(self, point):
+		return polygon([point] + self.points)
 
-	def return_poly(self):
-		return (self.poly1, self.poly2)
 
-class polygon(object):
-	def __init__(self, points):
+
+
+
+
+
+class polygon(item):
+	whoami = 'polygon'
+
+	def __init__(self, *points):
 		self.points = points
-		self.polygons = []
+		self.trigons = []
+		self.initialize()
+		if not self.valid(self.trigons):
+			raise NotSamePlaneError('Not all trigons are contained in the same plane.')
+
+	def valid(trigons):
+		for i in range(len(trigons)-1):
+			if trigons[i].normal != trigons[i+1].normal:
+				return False
+		return True
 
 	def add_points(self, *points):
 		self.points.append(points)
+		self.initialize()
 
 	def initialize(self):
+		self.trigons = []
 		pivot = self.points[0]
-		for idx, val in enumerate(self.points[1:]):
-			if idx != len(self.points[1:]):
-				self.polygons.append(trigon(pivot, val, self.points[1:][idx+1]))
+		for idx, val in enumerate(self.points[1:-1]):
+			self.trigons.append(trigon(pivot, val, self.points[1:][idx+1]))
 
-	def return_poly(self):
-		return self.polygons
-
+	def ret(self):
+		return self.trigons
 
 
 
-class solid(object):
-	def __init__(self, w, l, h):
-		self.w = w
-		self.l = l
-		self.h = h
 
-		self.vol = w*l*h
 
+
+
+class figure(item):
+	trigon = []
+	whoami = 'figure'
+
+	def ret(self):
+		return self.trigons
+
+
+class simple_solid(figure):
+	def __init__(self, *points):
+		self.points = points
+		self.trigons = [trigon(*x) for x in itertools.combinations(self.points)]
+
+
+class complex_solid(figure):
+
+	def __init__(self, *trigons):
+		self.trigons = list(set(trigons))
+
+	def add_simple(self, *simples):
+		merge = set(self.trigons)
+		for simple in simples:
+			merge = set(list(merge) + simple.trigons)
+
+		self.trigons = list(merge)
+
+
+
+class solid:
+	def __init__(self):
 		self.polygon_list = []
 
+	def add(self, *items):
+		for item in items:
+			if item.whoami() == 'figure' or item.whoami() == 'polygon':
+				for trigon in item.ret():
+					self.polygon_list.append(x)
+			elif item.whoami() == 'trigon':
+				self.polygon_list.append(item)
+			else:
+				raise ValueError('Item \'%s\' provided does not have a trigon value.' % item.__name__)
 
-
-		#Make a frame
-
-	def add_polygon(self, polygon):
-		for x in polygon.points:
-			if x.x > self.w or x.y > self.h or x.z > self.l or x.x < 0 or x.y < 0 or x.z < 0:
-				return False
-		self.polygon_list.append(polygon)
 
 	def export(self, export_file):
 		try:
@@ -124,24 +166,11 @@ class solid(object):
 		f.write(export_text)
 		f.close()
 
-
-s = solid(10, 10, 10)
-
-x_z_points = [(10, 5), (5, 10), (0, 5), (2, 3), (5, 0)]
-
-base_poly = polygon([])
-for x in x_z_points:
-	base_poly.add_points(point(x[0], 0, x[1]))
-
-for x in base_poly.return_poly():
-	s.add_polygon(x)
-
-for idx, x in x_z_points:
-	s.add_polygon(trigon(point(x[0], 0, x[1]), point(x_z_points[idx+1][0], 0, x_z_points[idx+1][1]), point(5, 5, 5)))
-
-
-s.export('/Code/test_stl.stl')
-
-
+		
+		
+		
+def join_simple_solids(sub1, sub2):
+	merge = set(sub1.trigons + sub2.trigons)
+	return complex_solid(sub1.trigons)
 
 
