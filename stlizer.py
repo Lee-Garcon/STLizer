@@ -5,10 +5,6 @@ import itertools
 class NotSamePlaneError(ValueError):
 	pass
 
-
-
-
-
 class point(object):
 	def __init__(self, x, y, z):
 		self.x = x
@@ -28,18 +24,16 @@ class vector(object):
 
 	def unit_resize(self):
 		return vector((self.value[0]/self.magnitude, self.value[1]/self.magnitude, self.value[2]/self.magnitude))
-
+	
 class item:
-	whoami = 'item'
+	Whoami = ''
 	def whoami(self):
-		return self.whoami
-
-
+		return self.Whoami
 
 class trigon(item):
 	#polygon; triangle
 
-	whoami = 'trigon'
+	Whoami = 'trigon'
 
 	def __init__(self, p1, p2, p3):
 		self.points = [p1, p2, p3]
@@ -48,7 +42,7 @@ class trigon(item):
 	def normal(self):
 		#Vectorize (p1, p2) and (p1, p3)
 		vector1 = spvector(self.points[0], self.points[1])
-		vector2 = spvector(self.points[0], self.points[2])=
+		vector2 = spvector(self.points[0], self.points[2])
 		normal = vector(self.cross_product(vector1.value, vector2.value))
 		unit_normal = normal.unit_resize()
 		return unit_normal
@@ -60,14 +54,9 @@ class trigon(item):
 	def split(self, point):
 		return polygon([point] + self.points)
 
-
-
-
-
-
-
 class polygon(item):
-	whoami = 'polygon'
+
+	Whoami = 'polygon'
 
 	def __init__(self, *points):
 		self.points = points
@@ -95,15 +84,9 @@ class polygon(item):
 	def ret(self):
 		return self.trigons
 
-
-
-
-
-
-
 class figure(item):
-	trigon = []
-	whoami = 'figure'
+	trigons = []
+	Whoami = 'figure'
 
 	def ret(self):
 		return self.trigons
@@ -112,7 +95,7 @@ class figure(item):
 class simple_solid(figure):
 	def __init__(self, *points):
 		self.points = points
-		self.trigons = [trigon(*x) for x in itertools.combinations(self.points)]
+		self.trigons = [trigon(*x) for x in itertools.combinations(self.points, 3)]
 
 
 class complex_solid(figure):
@@ -127,22 +110,19 @@ class complex_solid(figure):
 
 		self.trigons = list(merge)
 
-
-
 class solid:
 	def __init__(self):
 		self.polygon_list = []
 
 	def add(self, *items):
-		for item in items:
-			if item.whoami() == 'figure' or item.whoami() == 'polygon':
-				for trigon in item.ret():
-					self.polygon_list.append(x)
-			elif item.whoami() == 'trigon':
-				self.polygon_list.append(item)
+		for val in items:
+			if val.whoami() == 'figure' or val.whoami() == 'polygon':
+				for trigon in val.ret():
+					self.polygon_list.append(trigon)
+			elif val.whoami() == 'trigon':
+				self.polygon_list.append(val)
 			else:
-				raise ValueError('Item \'%s\' provided does not have a trigon value.' % item.__name__)
-
+				raise ValueError('Item \'%s\' provided does not have a trigon value.' % val.__name__)
 
 	def export(self, export_file):
 		try:
@@ -158,7 +138,7 @@ class solid:
 		for x in self.polygon_list:
 			export_text += '\tfacet normal %s %s %s\n\t\touter loop\n' % (str(x.normal.value[0]), str(x.normal.value[1]), str(x.normal.value[2]))
 			for i in range(3):
-				export_text += '\t\t\tvertex %s %s %s\n' % (str(x.points[i].x), str(x.points[i].y), str(x.points[i].z))
+				export_text += '\t\t\tvertex %s %s %s\n' % (str(x.points[i][0]), str(x.points[i][1]), str(x.points[i][2]))
 			export_text += '\t\tendloop\n\tendfacet\n'
 
 		export_text += 'endsolid'
@@ -166,11 +146,6 @@ class solid:
 		f.write(export_text)
 		f.close()
 
-		
-		
-		
 def join_simple_solids(sub1, sub2):
 	merge = set(sub1.trigons + sub2.trigons)
 	return complex_solid(sub1.trigons)
-
-
