@@ -12,12 +12,13 @@ class point(object):
 		self.z = z
 
 
-class spvector(object):
+class spvector(vector):
 	def __init__(self, spoint, p):
 		self.value = (p[0] - spoint[0], p[1] - spoint[1], p[2] - spoint[2])
 		self.magnitude = math.sqrt(self.value[0]**2 + self.value[1]**2 + self.value[2]**2)
 
-class vector(object):
+class vector(item):
+	Whoami = 'vector'
 	def __init__(self, val):
 		self.value = val
 		self.magnitude = math.sqrt(self.value[0]**2 + self.value[1]**2 + self.value[2]**2)
@@ -54,9 +55,7 @@ class trigon(item):
 	def split(self, point):
 		return polygon([point] + self.points)
 
-class polygon(item):
-
-	Whoami = 'polygon'
+class polygon(complex):
 
 	def __init__(self, *points):
 		self.points = points
@@ -64,12 +63,6 @@ class polygon(item):
 		self.initialize()
 		if not self.valid(self.trigons):
 			raise NotSamePlaneError('Not all trigons are contained in the same plane.')
-
-	def valid(trigons):
-		for i in range(len(trigons)-1):
-			if trigons[i].normal != trigons[i+1].normal:
-				return False
-		return True
 
 	def add_points(self, *points):
 		self.points.append(points)
@@ -81,15 +74,41 @@ class polygon(item):
 		for idx, val in enumerate(self.points[1:-1]):
 			self.trigons.append(trigon(pivot, val, self.points[1:][idx+1]))
 
+		self.non_overlap_segments()
+
+	def non_overlap_segments(self):
+		non_overlap_segments = []
+		self.blacklist = []
+		for x in [itertools.combinations(trigon.points, 2) for trigon in self.trigons]]:
+			for y in x:
+				if y not in non_overlap_segments:
+					non_overlap_segments.append(y)
+				else:
+					blacklist.append(y)
+
+		self.non_overlap_segments = []
+		for x in non_overlap_segments:
+			if x not in self.blacklist:
+				self.non_overlap_segments.append(x)
+
+	def valid(trigons):
+		for i in range(len(trigons)-1):
+			if trigons[i].normal != trigons[i+1].normal:
+				return False
+		return True
+
 	def ret(self):
 		return self.trigons
 
-class figure(item):
+class complex(item):
 	trigons = []
-	Whoami = 'figure'
+	Whoami = 'complex'
 
 	def ret(self):
 		return self.trigons
+
+class figure(complex):
+	Whoami = 'figure'
 
 
 class simple_solid(figure):
@@ -110,42 +129,50 @@ class complex_solid(figure):
 
 		self.trigons = list(merge)
 
+
+class cone(simple_solid):
+	def __init__(self, polygon, vertex):
+		self.trigons = polygon.ret()
+
+		for point_tuple in polygon.non_overlap_segments:
+			self.trigons.append(trigon(*point_tuple, vertex))
+
 class solid:
 	def __init__(self):
-		self.polygon_list = []
+		self.trigon_list = []
 
 	def add(self, *items):
-		for val in items:
+		for idx, val in enumerate(items):
 			if val.whoami() == 'figure' or val.whoami() == 'polygon':
 				for trigon in val.ret():
-					self.polygon_list.append(trigon)
+					self.trigon_list.append(trigon)
 			elif val.whoami() == 'trigon':
-				self.polygon_list.append(val)
+				self.trigon_list.append(val)
 			else:
-				raise ValueError('Item \'%s\' provided does not have a trigon value.' % val.__name__)
+				raise ValueError('Item \'%s\' number %s provided does not have a trigon value.' % (val.__name__, idx))
+
+
+	def output(self):
+		export_text = 'solid %s\n' % filename
+
+		for trigon in self.trigon_list:
+			export_text += '\tfacet normal %s %s %s\n\t\touter loop\n' % (str(trigon.normal.value[0]), str(trigon.normal.value[1]), str(trigon.normal.value[2]))
+			for i in range(3):
+				export_text += '\t\t\tvertex %s %s %s\n' % (str(trigon.points[i][0]), str(trigon.points[i][1]), str(trigon.points[i][2]))
+			export_text += '\t\tendloop\n\tendfacet\n'
+
+		export_text += 'endsolid'
+		return export_text
 
 	def export(self, export_file):
 		try:
 			f = open(export_file, 'w')
-		except:
-			sys.exit(1)
 
 		_tab = '\t'
 
 		filename = export_file.split('/')[-1].split('.')[0]
-		export_text = 'solid %s\n' % filename
 
-		for x in self.polygon_list:
-			export_text += '\tfacet normal %s %s %s\n\t\touter loop\n' % (str(x.normal.value[0]), str(x.normal.value[1]), str(x.normal.value[2]))
-			for i in range(3):
-				export_text += '\t\t\tvertex %s %s %s\n' % (str(x.points[i][0]), str(x.points[i][1]), str(x.points[i][2]))
-			export_text += '\t\tendloop\n\tendfacet\n'
-
-		export_text += 'endsolid'
+		export_text = self.output()
 
 		f.write(export_text)
 		f.close()
-
-def join_simple_solids(sub1, sub2):
-	merge = set(sub1.trigons + sub2.trigons)
-	return complex_solid(sub1.trigons)
